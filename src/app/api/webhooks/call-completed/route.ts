@@ -122,8 +122,13 @@ export async function POST(request: NextRequest) {
 
   const resolved = await resolveContractorForNumber(dialled);
   if (!resolved.ok) {
+    // `detail` carries the underlying cause (e.g. missing Supabase credentials).
+    // Logging the reason alone leaves the operator unable to tell a
+    // provisioning gap from a misconfigured environment.
     console.warn(
-      `[webhook] could not resolve contractor for ${dialled} (${resolved.reason}).`,
+      `[webhook] could not resolve contractor for ${dialled} (${resolved.reason})${
+        resolved.detail ? `: ${resolved.detail}` : ""
+      }`,
     );
     // 202, not 4xx: the request was valid and authenticated. Retrying will not
     // fix a provisioning gap, and a 4xx would make the vendor treat it as
