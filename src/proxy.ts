@@ -48,6 +48,18 @@ export async function proxy(request: NextRequest) {
 
   let response = NextResponse.next({ request });
 
+  // Forward the selected contractor to Postgres as `x-contractor-id`, which is
+  // where `current_contractor_id()` reads it (migration 0002). The SQL function
+  // verifies the value against the caller's own memberships before honouring
+  // it, so a forged cookie grants nothing — but the cookie is a convenience,
+  // not the security boundary.
+  const selected = request.cookies.get("contractor")?.value;
+  if (selected && /^[0-9a-f-]{36}$/i.test(selected)) {
+    const headers = new Headers(request.headers);
+    headers.set("x-contractor-id", selected);
+    response = NextResponse.next({ request: { headers } });
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,

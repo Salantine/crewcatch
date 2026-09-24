@@ -32,6 +32,27 @@ violations() {
   fi
 }
 
+# Same, but with additional per-file exclusions (used where a file has a
+# documented, narrow reason to bypass the rule).
+violations_except() {
+  local label="$1" pattern="$2"
+  shift 2
+  local -a args=(-rnE "$pattern" "$SRC"
+                  --include='*.tsx' --include='*.ts' --include='*.css')
+  local ex
+  for ex in "$@"; do args+=(--exclude="$ex"); done
+
+  local results
+  results=$(grep "${args[@]}" 2>/dev/null || true)
+
+  if [ -n "$results" ]; then
+    echo "✗ BANNED — $label"
+    echo "$results" | sed 's/^/    /'
+    echo
+    FAIL=1
+  fi
+}
+
 echo "Checking design mandate compliance..."
 
 # Glassmorphism
@@ -53,11 +74,16 @@ violations "soft shadow or glow" \
   '\bshadow(-(sm|md|lg|xl|2xl|inner|none))?\b'
 
 # Pastel / off-palette fills that break the monochrome industrial palette.
-# globals.css is excluded: it is the single sanctioned home for raw hex, and it
-# is where the measured token values live.
-violations "pastel or off-palette color literal" \
+# globals.css is the single sanctioned home for raw hex — it is where the
+# measured token values live.
+#
+# global-error.tsx is a narrow, documented exception: it replaces the whole
+# document when the root layout is broken, so it cannot rely on globals.css
+# having loaded. Its hex values are fallbacks inside `var(--token, #hex)` and
+# match the measured tokens — see the comment at the top of that file.
+violations_except "pastel or off-palette color literal" \
   '#(f|e)[0-9a-f]{5}\b|purple|violet|fuchsia|indigo|pink-|teal-|rose-' \
-  'globals.css'
+  'globals.css' 'global-error.tsx'
 
 # Raw Tailwind slate as TEXT — fails AA on our surfaces. Measured:
 # slate-500 = 3.81 on navy; slate-400 = 2.56 on white.

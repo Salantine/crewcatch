@@ -144,6 +144,14 @@ export interface PortalData {
   leads: Lead[];
   prompt: PromptProfile;
   demo: boolean;
+  /**
+   * Set when the signed-in user belongs to more than one contractor and has
+   * not chosen one. RLS correctly returns zero rows in that state, so pages
+   * must render the switcher rather than five empty tables.
+   */
+  ambiguous: { id: string; name: string }[] | null;
+  /** True when the user is authenticated but has no contractor membership. */
+  unassigned: boolean;
 }
 
 export async function getPortalData(): Promise<PortalData> {
@@ -154,32 +162,55 @@ export async function getPortalData(): Promise<PortalData> {
       leads: demoLeads,
       prompt: DEMO_PROFILE,
       demo: true,
+      ambiguous: null,
+      unassigned: false,
     };
   }
 
-  // TODO[CRITICAL]: Replace with RLS-scoped Supabase queries.
-  //
-  //   const supabase = await createClient();
-  //   const { data: { user } } = await supabase.auth.getUser();
-  //   if (!user) redirect('/login');
-  //   const { data: contractor } = await supabase
-  //     .from('contractors').select('*').eq('id', user.id).single();
-  //   const { data: calls } = await supabase
-  //     .from('calls').select('*')
-  //     .order('created_at', { ascending: false }).limit(200);
-  //   const { data: leads } = await supabase
-  //     .from('leads').select('*')
-  //     .order('captured_at', { ascending: false }).limit(200);
-  //   const { data: prompt } = await supabase
-  //     .from('prompt_profiles').select('*').eq('contractor_id', contractor.id).single();
-  //
-  // These queries are RLS-scoped: they return only the caller's rows, because
-  // the policies in 0001_init.sql filter on auth.uid(). There is no manual
-  // contractor_id filter and adding one would be redundant, not safer.
-  throw new Error(
-    "Supabase is configured but no query layer is implemented yet. " +
-      "See TODO[CRITICAL] in src/lib/portal/data.ts.",
+  const { resolveContractor, getCalls, getLeads } = await import(
+    "@/lib/portal/queries"
   );
+  const resolution = await resolveContractor();
+
+  if (resolution.kind === "none") {
+    // Authenticated but not yet attached to a contractor. A legitimate state
+    // during onboarding, not an error — the pages render an empty state.
+    return {
+      contractor: DEMO_CONTRACTOR,
+      calls: [],
+      leads: [],
+      prompt: DEMO_PROFILE,
+      demo: false,
+      ambiguous: null,
+      unassigned: true,
+    };
+  }
+
+  if (resolution.kind === "ambiguous") {
+    return {
+      contractor: DEMO_CONTRACTOR,
+      calls: [],
+      leads: [],
+      prompt: DEMO_PROFILE,
+      demo: false,
+      ambiguous: resolution.options.map((o) => ({ id: o.id, name: o.name })),
+      unassigned: false,
+    };
+  }
+
+  const [calls, leads] = await Promise.all([getCalls(), getLeads()]);
+
+  return {
+    contractor: resolution.contractor,
+    calls,
+    leads,
+    // A contractor can exist before a prompt is seeded; fall back to a
+    // rendered default rather than throwing on a missing optional relation.
+    prompt: resolution.prompt ?? DEMO_PROFILE,
+    demo: false,
+    ambiguous: null,
+    unassigned: false,
+  };
 }
 
 /** KPIs derived from the call log — no separate aggregate table needed. */

@@ -1,5 +1,6 @@
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { ContractorSwitcher, UnassignedNotice } from "@/components/portal/ContractorGate";
 import { TIER_LABEL } from "@/lib/domain/schemas";
 import { getPortalData } from "@/lib/portal/data";
 
@@ -8,15 +9,23 @@ export default async function PortalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Layouts do not re-render on navigation between child routes, so this fetch
-  // is shared by every portal page for the session.
-  const { contractor, demo } = await getPortalData();
+  const data = await getPortalData();
+
+  // Ambiguous membership: RLS is correctly returning nothing, so explain it
+  // rather than rendering a portal full of empty tables.
+  if (data.ambiguous) {
+    return <ContractorSwitcher options={data.ambiguous} />;
+  }
+
+  if (data.unassigned) {
+    return <UnassignedNotice />;
+  }
 
   return (
     <PortalShell
-      contractorName={contractor.name}
-      tier={TIER_LABEL[contractor.tier]}
-      demo={demo}
+      contractorName={data.contractor.name}
+      tier={TIER_LABEL[data.contractor.tier]}
+      demo={data.demo}
     >
       <ErrorBoundary label="portal">{children}</ErrorBoundary>
     </PortalShell>
