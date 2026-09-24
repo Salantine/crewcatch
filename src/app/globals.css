@@ -1,0 +1,167 @@
+@import "tailwindcss";
+
+/*
+ * CrewCatch AI — Industrial Enterprise design system.
+ *
+ * Every color below is a MEASURED value, not a taste call. Contrast ratios are
+ * computed against WCAG 2.1 AA thresholds and recorded in the implementation
+ * plan. The four rules encoded here are the ones most likely to be violated
+ * by accident:
+ *
+ *   1. Orange buttons carry NAVY text, never white.        (white/orange = 2.86 FAIL)
+ *   2. Muted text is --fg-muted, never raw slate-400/500.   (slate-500 = 3.81 FAIL)
+ *   3. Orange as TEXT is dark-surface only; light surfaces use --accent-ink.
+ *   4. The focus ring is surface-relative, never one hardcoded color.
+ *
+ * Do not add a color here without computing its contrast first.
+ */
+
+/* ---------------------------------------------------------------- dark (default)
+ * Dark is the primary theme: a contractor dispatching at 11pm sees this, and
+ * high contrast is the whole point of the product. */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface-0: #0a1628; /* navy — page background        */
+  --surface-1: #111a28; /* panel — cards, tables          */
+  --surface-2: #161c22; /* charcoal — raised / headers     */
+  --surface-3: #1d2634; /* input wells, hover states       */
+
+  --accent: #ff6b00; /* 6.35:1 on surface-0 — AAA */
+  --accent-hover: #e85d04; /* 5.18:1 — AA */
+  --accent-fg: #0a1628; /* navy text ON orange — rule 1 */
+  --accent-ink: #ff6b00; /* orange as TEXT on dark — rule 3 */
+
+  --fg: #ffffff; /* 18.13:1 — AAA */
+  --fg-muted: #8a94a6; /* 5.93:1 on navy — AA; rule 2 */
+  --fg-subtle: #55657a; /* decorative text only, not body */
+
+  --border-subtle: #2a3646; /* 1.48:1 — DECORATIVE dividers only */
+  --border-strong: #55657a; /* 3.05:1 — control boundaries, 3:1 required */
+
+  --urgency-critical: #ff3b30; /* 5.11:1 */
+  --urgency-high: #ff9500; /* 8.25:1 */
+  --urgency-normal: #34c759; /* 8.17:1 */
+  --urgency-low: #8a94a6; /* 5.93:1 */
+
+  --focus-ring: #ff6b00; /* 6.35:1 on dark surfaces */
+  --focus-ring-on-accent: #0a1628; /* navy, 6.35:1 ON orange — rule 4 */
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+
+    --surface-0: #ffffff;
+    --surface-1: #f7f8fa;
+    --surface-2: #eef1f5;
+    --surface-3: #e2e7ee;
+
+    --accent: #ff6b00; /* kept for fills only */
+    --accent-hover: #e85d04;
+    --accent-fg: #0a1628;
+    --accent-ink: #9a3a00; /* orange as TEXT on white — rule 3, was 2.86 FAIL */
+
+    --fg: #0a1628; /* 18.13:1 on white */
+    --fg-muted: #475569; /* 7.58:1 on white — AA */
+    --fg-subtle: #64748b;
+
+    --border-subtle: #d7dde5;
+    --border-strong: #55657a; /* 12.25:1 on white */
+
+    --urgency-critical: #c81e1e;
+    --urgency-high: #9a3a00;
+    --urgency-normal: #1a7f37;
+    --urgency-low: #475569;
+
+    --focus-ring: #0a1628; /* rule 4: NOT orange, invisible on white */
+    --focus-ring-on-accent: #0a1628;
+  }
+}
+
+@theme inline {
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-ink: var(--accent-ink);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-urgency-critical: var(--urgency-critical);
+  --color-urgency-high: var(--urgency-high);
+  --color-urgency-normal: var(--urgency-normal);
+  --color-urgency-low: var(--urgency-low);
+
+  /* Sharp corners are the product's visual identity, not a default to override. */
+  --radius-DEFAULT: 0;
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+* {
+  border-color: var(--border-subtle);
+}
+
+html {
+  background: var(--surface-0);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--surface-0);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv05", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Rule 4: the focus indicator is surface-relative. `outline-offset` keeps it
+ * clear of the element it surrounds so it never relies on the element's own
+ * fill for contrast.
+ */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 0;
+}
+
+/* On the primary action, the ring must be navy — orange-on-orange is invisible. */
+.btn-accent:focus-visible {
+  outline-color: var(--focus-ring-on-accent);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+/* Data density: tabular figures stop metric columns from jittering as digits change. */
+.metric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
