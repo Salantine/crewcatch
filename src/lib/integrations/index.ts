@@ -81,26 +81,35 @@ export function getProviders() {
  * Resolves the notification channel for a dispatch type.
  *
  * Kept as a lookup rather than an index into `mockChannels` so `dispatchLead`
- * never has to know which integration mode is active: in live mode this
- * returns the real Twilio / SMTP / CRM client.
+ * never has to know which integration mode is active.
  *
- * Returns null for a channel with no implementation. `dispatchLead` treats
- * that as a permanent failure and does NOT retry it — retrying cannot conjure
- * a missing adapter.
+ * Returns null for a channel with no live implementation yet (email, CRM).
+ * `dispatchLead` treats that as a permanent failure and does NOT retry it —
+ * retrying cannot conjure a missing adapter. The consequence is deliberate
+ * and visible: a contractor configured for SMS+CRM gets their SMS delivered
+ * and a recorded CRM failure, rather than both silently failing.
  */
-export function getNotificationChannel(
+export async function getNotificationChannel(
   channel: DispatchChannel,
-): NotificationChannel | null {
+): Promise<NotificationChannel | null> {
   if (integrationMode() === "live") {
-    // TODO[CRITICAL]: Return the live channel client here.
+    if (channel === "sms") {
+      // Imported lazily: twilio-sms is `server-only`, and a static import
+      // here would drag that constraint into every consumer of this module,
+      // including client-side tests and the mock path.
+      const { createTwilioSmsChannel } = await import("./twilio-sms");
+      // Construction throws if credentials are missing. That surfaces as a
+      // failed dispatch in the portal rather than a silent no-op.
+      return createTwilioSmsChannel();
+    }
+    // TODO[CRITICAL]: Email and CRM adapters.
     //
-    //   case "sms":   return new TwilioSmsChannel();
     //   case "email": return new SmtpEmailChannel();
     //   case "crm":   return new CrmWebhookChannel();
     //
-    // Required: each must implement NotificationChannel.send() and return a
-    // DeliveryReceipt, never throw on a provider error (a throw is treated as
-    // a retryable failure by the caller).
+    // Each must implement NotificationChannel.send() and follow the same
+    // rule as the SMS channel: return { accepted: false } for permanent
+    // failures, throw only for transient ones.
     return null;
   }
   return mockChannels.find((c) => c.channel === channel) ?? null;

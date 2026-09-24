@@ -112,7 +112,7 @@ export async function dispatchLead(input: DispatchInput): Promise<DispatchResult
       while (attempts < MAX_ATTEMPTS) {
         attempts += 1;
         try {
-          const sender = getNotificationChannel(channel);
+          const sender = await getNotificationChannel(channel);
           if (!sender) {
             lastDetail = `no channel implementation for "${channel}"`;
             break; // Retrying cannot fix a missing implementation.
