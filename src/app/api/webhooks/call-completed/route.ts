@@ -13,6 +13,7 @@ import {
   resolveContractorForNumber,
 } from "@/lib/portal/persistence";
 import { dispatchLead } from "@/lib/dispatch/dispatch-lead";
+import { log } from "@/lib/observability/logger";
 
 /**
  * Ingestion endpoint for completed calls.
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
   const headerName = process.env.RETELL_SIGNATURE_HEADER ?? "x-retell-signature";
 
   if (!secret) {
-    console.error("[webhook] RETELL_WEBHOOK_SECRET is not set — refusing the request.");
+    log.error("webhook.not_configured", { hint: "RETELL_WEBHOOK_SECRET missing" });
     return NextResponse.json({ error: "server_not_configured" }, { status: 503 });
   }
 
@@ -55,11 +56,10 @@ export async function POST(request: NextRequest) {
   });
 
   if (!verification.valid) {
-    console.warn(
-      `[webhook] signature rejected (${verification.reason}) from ${
-        request.headers.get("user-agent") ?? "unknown client"
-      }`,
-    );
+    log.warn("webhook.signature_rejected", {
+      reason: verification.reason,
+      userAgent: request.headers.get("user-agent") ?? "unknown",
+    });
     return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
   }
 
@@ -79,9 +79,7 @@ export async function POST(request: NextRequest) {
   // guessed at.
   const internal = CallCompletedEvent.safeParse(parsed);
   if (!internal.success) {
-    console.warn(
-      "[webhook] payload did not match CallCompletedEvent; vendor mapping not yet implemented.",
-    );
+    log.warn("webhook.unmapped_vendor_payload", { issues: internal.error.issues.length });
     return NextResponse.json(
       { error: "unmapped_vendor_payload", issues: internal.error.issues.length },
       { status: 501 },
@@ -97,9 +95,10 @@ export async function POST(request: NextRequest) {
   const extraction = extractLead(event, { trade });
 
   if (!extraction.ok) {
-    console.info(
-      `[webhook] call ${event.externalCallId} captured but not qualified (${extraction.reason}).`,
-    );
+    log.info("webhook.not_qualified", {
+      externalCallId: event.externalCallId,
+      reason: extraction.reason,
+    });
     return NextResponse.json(
       { status: "captured_not_qualified", reason: extraction.reason },
       { status: 200 },
@@ -111,9 +110,9 @@ export async function POST(request: NextRequest) {
   //    receiving another customer's call.
   const dialled = event.metadata.dialledNumber ?? event.metadata.to;
   if (!dialled) {
-    console.warn(
-      "[webhook] no dialled number in metadata — cannot resolve the contractor.",
-    );
+    log.warn("webhook.missing_dialled_number", {
+      externalCallId: event.externalCallId,
+    });
     return NextResponse.json(
       { status: "unresolved", reason: "missing_dialled_number" },
       { status: 202 },
@@ -125,11 +124,11 @@ export async function POST(request: NextRequest) {
     // `detail` carries the underlying cause (e.g. missing Supabase credentials).
     // Logging the reason alone leaves the operator unable to tell a
     // provisioning gap from a misconfigured environment.
-    console.warn(
-      `[webhook] could not resolve contractor for ${dialled} (${resolved.reason})${
-        resolved.detail ? `: ${resolved.detail}` : ""
-      }`,
-    );
+    log.warn("webhook.contractor_unresolved", {
+      externalCallId: event.externalCallId,
+      reason: resolved.reason,
+      detail: resolved.detail,
+    });
     // 202, not 4xx: the request was valid and authenticated. Retrying will not
     // fix a provisioning gap, and a 4xx would make the vendor treat it as
     // permanently undeliverable and stop retrying — which is what we want.
@@ -151,9 +150,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (!callResult.ok) {
-    console.error(
-      `[webhook] failed to persist call ${event.externalCallId}: ${callResult.reason} ${callResult.detail ?? ""}`,
-    );
+    log.error("webhook.persist_call_failed", {
+      externalCallId: event.externalCallId,
+      reason: callResult.reason,
+      detail: callResult.detail,
+    });
     return NextResponse.json(
       { status: "persistence_failed", reason: callResult.reason },
       { status: 500 },
@@ -173,9 +174,11 @@ export async function POST(request: NextRequest) {
   });
 
   if (!leadRow.ok) {
-    console.error(
-      `[webhook] failed to persist lead for call ${callId}: ${leadRow.reason} ${leadRow.detail ?? ""}`,
-    );
+    log.error("webhook.persist_lead_failed", {
+      callId,
+      reason: leadRow.reason,
+      detail: leadRow.detail,
+    });
     return NextResponse.json(
       { status: "persistence_failed", reason: leadRow.reason },
       { status: 500 },
@@ -200,9 +203,13 @@ export async function POST(request: NextRequest) {
 
   const delivered = dispatches.filter((d) => d.delivered).length;
 
-  console.info(
-    `[webhook] lead ${lead.id} persisted; ${delivered}/${dispatches.length} channel(s) delivered.`,
-  );
+  log.info("webhook.lead_dispatched", {
+    leadId: lead.id,
+    callId,
+    replayed: !callResult.data.created,
+    delivered,
+    channels: dispatches.length,
+  });
 
   return NextResponse.json(
     {

@@ -6,6 +6,7 @@ import {
 } from "@/lib/domain/schemas";
 import { recordDispatchEvent } from "@/lib/portal/persistence";
 import { getNotificationChannel, getProviders } from "@/lib/integrations";
+import { log } from "@/lib/observability/logger";
 
 /**
  * Lead dispatch — the 30-second promise.
@@ -87,10 +88,11 @@ export async function dispatchLead(input: DispatchInput): Promise<DispatchResult
     const { workflow } = getProviders();
     await workflow.dispatchLead(lead, channels);
   } catch (err) {
-    console.error(
-      `[dispatch] workflow fan-out failed for lead ${lead.id}:`,
-      err instanceof Error ? err.message : err,
-    );
+    log.error("dispatch.workflow_failed", {
+      leadId: lead.id,
+      contractorId,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return Promise.all(
@@ -147,9 +149,25 @@ export async function dispatchLead(input: DispatchInput): Promise<DispatchResult
       });
 
       if (!withinSla) {
-        console.warn(
-          `[dispatch] lead ${lead.id} took ${overallElapsed}ms — past the ${SLA_MS}ms promise.`,
-        );
+        // A breached SLA is a broken promise to a paying customer, so it is
+        // logged at warn with the lead id — this is the signal to alert on.
+        log.warn("dispatch.sla_breached", {
+          leadId: lead.id,
+          contractorId,
+          channel,
+          elapsedMs: overallElapsed,
+          slaMs: SLA_MS,
+        });
+      }
+
+      if (!delivered) {
+        log.error("dispatch.failed", {
+          leadId: lead.id,
+          contractorId,
+          channel,
+          attempts,
+          detail: lastDetail,
+        });
       }
 
       return {
