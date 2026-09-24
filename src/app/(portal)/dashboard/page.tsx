@@ -4,7 +4,7 @@ import { DataTable, type TableColumn } from "@/components/ui/Table";
 import { formatUsd } from "@/lib/domain/roi";
 import { computeMetrics, getPortalData } from "@/lib/portal/data";
 import type { Lead } from "@/lib/domain/schemas";
-import { dispatchLagMs, formatLag } from "@/lib/dispatch/sla";
+import { formatLag } from "@/lib/dispatch/sla";
 import { getSlaAndUsage } from "@/lib/portal/queries";
 
 export const metadata: Metadata = { title: "Dashboard" };

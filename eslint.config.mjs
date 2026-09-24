@@ -58,6 +58,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Coverage output is generated, not source. Linting it produced a
+    // spurious "unused eslint-disable" warning from instrumented code.
+    "coverage/**",
   ]),
 ]);
 
