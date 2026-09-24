@@ -64,21 +64,24 @@ export default function CompliancePage() {
         <h2 className="text-xl font-black uppercase tracking-tight">
           How the agent is built
         </h2>
-        <dl className="mt-6 space-y-px bg-border-subtle">
+        <ol className="mt-6 space-y-px bg-border-subtle">
           {PRINCIPLES.map((item, i) => (
-            <div key={item.title} className="grid gap-px bg-border-subtle sm:grid-cols-4">
+            <li
+              key={item.title}
+              className="grid gap-px bg-border-subtle sm:grid-cols-4"
+            >
               <div className="bg-surface-1 p-4">
-                <span className="metric text-sm font-bold text-accent-ink">
+                <span className="metric text-sm font-bold text-accent-ink" aria-hidden="true">
                   {String(i + 1).padStart(2, "0")}
                 </span>
               </div>
               <div className="bg-surface-1 p-4 sm:col-span-3">
-                <dt className="font-bold uppercase tracking-wide">{item.title}</dt>
-                <dd className="mt-1 text-sm text-fg-muted">{item.body}</dd>
+                <h3 className="font-bold uppercase tracking-wide">{item.title}</h3>
+                <p className="mt-1 text-sm text-fg-muted">{item.body}</p>
               </div>
-            </div>
+            </li>
           ))}
-        </dl>
+        </ol>
       </section>
 
       <section className="mt-12">

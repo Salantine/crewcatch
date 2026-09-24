@@ -35,12 +35,14 @@ export default async function DashboardPage() {
     <div className="mx-auto max-w-7xl px-4 py-8">
       <h1 className="text-2xl font-black uppercase tracking-tight">Dashboard</h1>
 
-      <dl className="mt-6 grid gap-px bg-border-subtle sm:grid-cols-2 lg:grid-cols-4">
+      {/* A KPI row is a set of independent figures, not term/definition pairs,
+          so a plain grid is the correct structure (a <dl> here was invalid). */}
+      <div className="mt-6 grid gap-px bg-border-subtle sm:grid-cols-2 lg:grid-cols-4">
         <KpiTile label="Calls captured" value={String(metrics.totalCalls)} note="All time" />
         <KpiTile label="Qualified rate" value={`${metrics.qualifiedRate}%`} note="Leads with a callback number" tone="normal" />
         <KpiTile label="Critical this period" value={String(metrics.criticalCount)} note="Pushed immediately" tone="critical" />
         <KpiTile label="Avg call length" value={fmtDuration(metrics.avgDurationSeconds)} note="Answered by the agent" />
-      </dl>
+      </div>
 
       <div className="mt-8 grid gap-px bg-border-subtle lg:grid-cols-3">
         <div className="bg-surface-1 p-5 lg:col-span-2">

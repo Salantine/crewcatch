@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { StatGrid } from "@/components/ui/StatGrid";
 import {
   TIER_LABEL,
   TRADE_LABEL,
@@ -79,23 +80,14 @@ export default function HomePage() {
           </div>
 
           {/* Hard numbers, not adjectives. */}
-          <dl className="mt-16 grid max-w-3xl grid-cols-1 gap-px border border-border-subtle bg-border-subtle sm:grid-cols-3">
-            {[
-              { label: "Answer rate", value: "100%", note: "of overflow calls" },
-              { label: "Dispatch target", value: "<30s", note: "after hangup" },
-              { label: "Setup fee", value: "$1,500", note: "one-time" },
-            ].map((stat) => (
-              <div key={stat.label} className="bg-surface-1 p-5">
-                <dt className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
-                  {stat.label}
-                </dt>
-                <dd className="metric mt-2 text-3xl font-bold text-accent-ink">
-                  {stat.value}
-                </dd>
-                <p className="mt-1 text-xs text-fg-muted">{stat.note}</p>
-              </div>
-            ))}
-          </dl>
+          <StatGrid
+            className="mt-16 max-w-3xl sm:grid-cols-3"
+            items={[
+              { label: "Answer rate", value: <span className="metric text-3xl font-bold text-accent-ink">100%</span>, note: "of overflow calls" },
+              { label: "Dispatch target", value: <span className="metric text-3xl font-bold text-accent-ink">&lt;30s</span>, note: "after hangup" },
+              { label: "Setup fee", value: <span className="metric text-3xl font-bold text-accent-ink">$1,500</span>, note: "one-time" },
+            ]}
+          />
         </div>
       </section>
 

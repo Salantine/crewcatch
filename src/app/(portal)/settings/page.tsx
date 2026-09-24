@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Badge } from "@/components/ui/Badge";
+import { StatGrid } from "@/components/ui/StatGrid";
 import { formatUsd, MONTHLY_RETAINER, SETUP_FEE } from "@/lib/domain/roi";
 import { getPortalData } from "@/lib/portal/data";
 import { TIER_LABEL, TRADE_LABEL } from "@/lib/domain/schemas";
@@ -24,21 +25,15 @@ export default async function SettingsPage() {
         <h2 className="text-sm font-bold uppercase tracking-wider text-fg-muted">
           Account
         </h2>
-        <dl className="mt-4 grid gap-px bg-border-subtle sm:grid-cols-2">
-          {[
-            ["Business", contractor.name],
-            ["Primary trade", TRADE_LABEL[contractor.primaryTrade]],
-            ["Tier", TIER_LABEL[contractor.tier]],
-            ["Greeting", prompt.greeting],
-          ].map(([label, value]) => (
-            <div key={label} className="bg-surface-1 p-4">
-              <dt className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
-                {label}
-              </dt>
-              <dd className="mt-1 text-sm">{value}</dd>
-            </div>
-          ))}
-        </dl>
+        <StatGrid
+          className="mt-4 sm:grid-cols-2"
+          items={[
+            { label: "Business", value: contractor.name },
+            { label: "Primary trade", value: TRADE_LABEL[contractor.primaryTrade] },
+            { label: "Tier", value: TIER_LABEL[contractor.tier] },
+            { label: "Greeting", value: prompt.greeting },
+          ]}
+        />
       </section>
 
       <section className="mt-8">
@@ -61,26 +56,21 @@ export default async function SettingsPage() {
         <h2 className="text-sm font-bold uppercase tracking-wider text-fg-muted">
           Billing
         </h2>
-        <dl className="mt-4 grid gap-px bg-border-subtle sm:grid-cols-2">
-          <div className="bg-surface-1 p-4">
-            <dt className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
-              Setup fee
-            </dt>
-            <dd className="metric mt-1 text-2xl font-bold">
-              {formatUsd(SETUP_FEE)}
-            </dd>
-            <p className="mt-1 text-xs text-fg-muted">one-time, already paid</p>
-          </div>
-          <div className="bg-surface-1 p-4">
-            <dt className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
-              Monthly retainer
-            </dt>
-            <dd className="metric mt-1 text-2xl font-bold">
-              {formatUsd(MONTHLY_RETAINER)}
-            </dd>
-            <p className="mt-1 text-xs text-fg-muted">includes usage baseline</p>
-          </div>
-        </dl>
+        <StatGrid
+          className="mt-4 sm:grid-cols-2"
+          items={[
+            {
+              label: "Setup fee",
+              value: <span className="metric text-2xl font-bold">{formatUsd(SETUP_FEE)}</span>,
+              note: "one-time, already paid",
+            },
+            {
+              label: "Monthly retainer",
+              value: <span className="metric text-2xl font-bold">{formatUsd(MONTHLY_RETAINER)}</span>,
+              note: "includes usage baseline",
+            },
+          ]}
+        />
       </section>
 
       <section className="mt-8">

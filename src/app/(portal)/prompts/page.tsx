@@ -87,7 +87,14 @@ export default async function PromptsPage() {
         <h2 className="text-sm font-bold uppercase tracking-wider text-fg-muted">
           Rendered system prompt
         </h2>
-        <pre className="mt-4 max-h-96 overflow-auto border border-border-subtle bg-surface-1 p-4 text-sm leading-relaxed text-fg-muted">
+        {/* tabIndex + role: a scrollable region must be keyboard-reachable, or
+            a keyboard-only user cannot read the rest of the prompt. */}
+        <pre
+          tabIndex={0}
+          role="region"
+          aria-label="Rendered voice agent system prompt"
+          className="mt-4 max-h-96 overflow-auto border border-border-subtle bg-surface-1 p-4 text-sm leading-relaxed text-fg-muted"
+        >
           {rendered.system}
         </pre>
       </section>
