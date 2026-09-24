@@ -14,6 +14,7 @@ import {
 } from "@/lib/portal/persistence";
 import { dispatchLead } from "@/lib/dispatch/dispatch-lead";
 import { log } from "@/lib/observability/logger";
+import { recordUsage } from "@/lib/billing/metering";
 
 /**
  * Ingestion endpoint for completed calls.
@@ -183,6 +184,22 @@ export async function POST(request: NextRequest) {
       { status: "persistence_failed", reason: leadRow.reason },
       { status: 500 },
     );
+  }
+
+  // Meter the call. Recorded only when the call row was newly created, so a
+  // replayed webhook cannot inflate the customer's bill. A metering failure
+  // must not fail the dispatch — the lead matters more than the meter.
+  if (callResult.data.created) {
+    const metered = await recordUsage(contractorId, {
+      callsAnswered: 1,
+      minutesUsed: event.durationSeconds / 60,
+    });
+    if (!metered.ok) {
+      log.warn("webhook.metering_failed", {
+        externalCallId: event.externalCallId,
+        reason: metered.reason,
+      });
+    }
   }
 
   const lead: Lead = {

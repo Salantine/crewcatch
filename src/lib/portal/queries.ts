@@ -2,6 +2,8 @@ import "server-only";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { dispatchLagMs } from "@/lib/dispatch/sla";
+import { getOverageSummary } from "@/lib/billing/metering";
 import {
   Call as CallSchema,
   CallIntent,
@@ -285,4 +287,59 @@ export async function getLeads(limit = 200): Promise<Lead[]> {
 
   if (error) throw new Error(`getLeads failed: ${error.message}`);
   return (data ?? []).map(toLead);
+}
+
+/* ------------------------------------------------- SLA + usage (dashboard) */
+
+export interface SlaAndUsage {
+  lag: ReturnType<typeof dispatchLagMs>;
+  usage: {
+    minutesUsed: number;
+    baselineMinutes: number;
+    overageMinutes: number;
+  };
+}
+
+/**
+ * Dispatch timing and monthly usage.
+ *
+ * Both come from the database rather than the loaded call rows: dispatch
+ * timing lives in `dispatch_events.dispatched_at`, and usage is an aggregate
+ * the webhook maintains — neither is derivable from the portal's call list.
+ *
+ * Fails soft: a customer seeing a blank speed panel is better than a customer
+ * seeing a 500 on their dashboard.
+ */
+export async function getSlaAndUsage(contractorId: string): Promise<SlaAndUsage> {
+  const empty = {
+    lag: { count: 0, medianMs: 0, p95Ms: 0, breaches: 0, worstMs: 0 },
+    usage: { minutesUsed: 0, baselineMinutes: 500, overageMinutes: 0 },
+  };
+
+  try {
+    const supabase = await createClient();
+
+    const [events, usage] = await Promise.all([
+      supabase
+        .from("dispatch_events")
+        .select("created_at, dispatched_at")
+        .eq("contractor_id", contractorId)
+        .order("created_at", { ascending: false })
+        .limit(200),
+      getOverageSummary(contractorId),
+    ]);
+
+    return {
+      lag: dispatchLagMs(
+        (events.data ?? []) as { created_at: string; dispatched_at: string | null }[],
+      ),
+      usage: {
+        minutesUsed: usage.minutesUsed,
+        baselineMinutes: usage.baselineMinutes,
+        overageMinutes: usage.overageMinutes,
+      },
+    };
+  } catch {
+    return empty;
+  }
 }

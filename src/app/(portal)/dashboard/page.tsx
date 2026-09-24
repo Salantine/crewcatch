@@ -4,6 +4,8 @@ import { DataTable, type TableColumn } from "@/components/ui/Table";
 import { formatUsd } from "@/lib/domain/roi";
 import { computeMetrics, getPortalData } from "@/lib/portal/data";
 import type { Lead } from "@/lib/domain/schemas";
+import { dispatchLagMs, formatLag } from "@/lib/dispatch/sla";
+import { getSlaAndUsage } from "@/lib/portal/queries";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -19,9 +21,13 @@ const fmtDuration = (s: number) =>
   s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
 
 export default async function DashboardPage() {
-  const { calls, leads } = await getPortalData();
+  const { calls, leads, contractor } = await getPortalData();
   const metrics = computeMetrics(calls, leads);
   const critical = leads.filter((l) => l.urgency === "critical").slice(0, 8);
+
+  // SLA + usage come from the database, not from the loaded call rows: they
+  // are about DISPATCH timing, which the call log does not record.
+  const { lag, usage } = await getSlaAndUsage(contractor.id);
 
   const columns: TableColumn<Lead>[] = [
     { key: "name", header: "Caller", render: (l) => <span className="font-semibold">{l.name}</span> },
@@ -68,6 +74,67 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
+
+      <section className="mt-8" aria-labelledby="dispatch-speed">
+        <h2
+          id="dispatch-speed"
+          className="text-sm font-bold uppercase tracking-wider text-fg-muted"
+        >
+          Dispatch speed
+        </h2>
+        <p className="mt-1 text-sm text-fg-muted">
+          Measured from the moment a lead was captured to the moment the alert
+          left. The promise is 30 seconds.
+        </p>
+
+        <div className="mt-4 grid gap-px bg-border-subtle sm:grid-cols-4">
+          <div className="bg-surface-1 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
+              Median
+            </p>
+            <p className="metric mt-1 text-2xl font-bold text-accent-ink">
+              {lag.count === 0 ? "—" : formatLag(lag.medianMs)}
+            </p>
+          </div>
+          <div className="bg-surface-1 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
+              p95
+            </p>
+            <p className="metric mt-1 text-2xl font-bold">
+              {lag.count === 0 ? "—" : formatLag(lag.p95Ms)}
+            </p>
+          </div>
+          <div className="bg-surface-1 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
+              Over 30s
+            </p>
+            <p
+              className={`metric mt-1 text-2xl font-bold ${
+                lag.breaches > 0 ? "text-urgency-high" : "text-urgency-normal"
+              }`}
+            >
+              {lag.count === 0 ? "—" : lag.breaches}
+            </p>
+          </div>
+          <div className="bg-surface-1 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
+              Minutes this month
+            </p>
+            <p className="metric mt-1 text-2xl font-bold">
+              {Math.round(usage.minutesUsed)}
+              <span className="text-sm text-fg-muted">
+                {" "}
+                / {usage.baselineMinutes}
+              </span>
+            </p>
+            {usage.overageMinutes > 0 && (
+              <p className="mt-1 text-xs text-urgency-high">
+                {Math.round(usage.overageMinutes)} min over baseline
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
 
       <div className="mt-8">
         <DataTable
