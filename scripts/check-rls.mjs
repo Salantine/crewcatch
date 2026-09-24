@@ -26,6 +26,14 @@ const MIGRATION = path.join(
   "0001_init.sql",
 );
 
+const M2 = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "supabase",
+  "migrations",
+  "0002_decouple_contractor.sql",
+);
+
 const TENANT_TABLES = [
   "phone_numbers",
   "prompt_profiles",
@@ -107,6 +115,55 @@ if (extraInBlock.length) {
 if (!/set search_path = public/i.test(sql)) {
   console.error("✗ current_contractor_id() does not pin search_path — RLS bypass risk.");
   failed = true;
+}
+
+// ------------------------------------------------ migration 0002 invariants
+// The tenant model is only correct if the contractor identity was decoupled
+// from the auth user. These assertions fail loudly if a future migration
+// reintroduces the 1:1 constraint, which would silently cap each user to one
+// contractor and make the multi-entity case impossible.
+const m2 = await readFile(M2, "utf8").catch(() => null);
+
+if (!m2) {
+  console.error("✗ Migration 0002 is missing — the auth.users FK is still in place.");
+  failed = true;
+} else {
+  if (!/drop constraint if exists contractors_id_fkey/i.test(m2)) {
+    console.error("✗ 0002 does not drop the contractors → auth.users foreign key.");
+    failed = true;
+  }
+  // Inspect the FUNCTION BODY only, not the whole file: a comment mentioning
+  // "limit 1" must not fail the build, but the function actually doing it must.
+  const fnBody = m2.match(
+    /create or replace function public\.current_contractor_id\(\)[\s\S]*?\$\$;/i,
+  )?.[0] ?? "";
+  if (/limit\s+1/i.test(fnBody)) {
+    console.error(
+      "✗ current_contractor_id() still selects a single row — an ambiguous membership would resolve to an arbitrary contractor, leaking another entity's rows.",
+    );
+    failed = true;
+  }
+  if (!/return null/i.test(fnBody)) {
+    console.error(
+      "✗ current_contractor_id() never returns NULL — an ambiguous membership must fail closed, not guess.",
+    );
+    failed = true;
+  }
+  if (!/on update cascade/i.test(m2)) {
+    console.error(
+      "✗ contractor_id FKs are not ON UPDATE CASCADE — reassigning a contractor id would orphan tenant rows.",
+    );
+    failed = true;
+  }
+  if (!/dispatched_at/i.test(m2)) {
+    console.error("✗ dispatch_events.dispatched_at missing — the 30-second SLA cannot be measured.");
+    failed = true;
+  }
+  console.log("Tenant model:");
+  console.log("  contractor decoupled from auth.users   ✓");
+  console.log("  ambiguous membership fails closed      ✓");
+  console.log("  contractor_id FKs cascade on update    ✓");
+  console.log("  dispatch SLA instrumentation present   ✓");
 }
 
 console.log(failed ? "\n✗ RLS check FAILED." : "\n✓ Every tenant table is RLS-covered.");

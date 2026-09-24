@@ -1,5 +1,11 @@
-import { mockTelephony, mockVoiceAgent, mockWorkflow } from "./mock";
-import type { TelephonyProvider, VoiceAgentProvider, WorkflowProvider } from "./types";
+import { mockChannels, mockTelephony, mockVoiceAgent, mockWorkflow } from "./mock";
+import type { DispatchChannel } from "@/lib/domain/schemas";
+import type {
+  NotificationChannel,
+  TelephonyProvider,
+  VoiceAgentProvider,
+  WorkflowProvider,
+} from "./types";
 
 /**
  * Provider selection.
@@ -69,6 +75,35 @@ export function getProviders() {
     workflow: mockWorkflow,
   };
   return cached;
+}
+
+/**
+ * Resolves the notification channel for a dispatch type.
+ *
+ * Kept as a lookup rather than an index into `mockChannels` so `dispatchLead`
+ * never has to know which integration mode is active: in live mode this
+ * returns the real Twilio / SMTP / CRM client.
+ *
+ * Returns null for a channel with no implementation. `dispatchLead` treats
+ * that as a permanent failure and does NOT retry it — retrying cannot conjure
+ * a missing adapter.
+ */
+export function getNotificationChannel(
+  channel: DispatchChannel,
+): NotificationChannel | null {
+  if (integrationMode() === "live") {
+    // TODO[CRITICAL]: Return the live channel client here.
+    //
+    //   case "sms":   return new TwilioSmsChannel();
+    //   case "email": return new SmtpEmailChannel();
+    //   case "crm":   return new CrmWebhookChannel();
+    //
+    // Required: each must implement NotificationChannel.send() and return a
+    // DeliveryReceipt, never throw on a provider error (a throw is treated as
+    // a retryable failure by the caller).
+    return null;
+  }
+  return mockChannels.find((c) => c.channel === channel) ?? null;
 }
 
 export * from "./types";

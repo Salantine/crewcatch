@@ -1,8 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getProviders } from "@/lib/integrations";
 import { verifyWebhookSignature } from "@/lib/integrations/signature";
-import { CallCompletedEvent, TRADE_TIER, Trade } from "@/lib/domain/schemas";
+import {
+  CallCompletedEvent,
+  TRADE_TIER,
+  Trade,
+  type Lead,
+} from "@/lib/domain/schemas";
 import { extractLead } from "@/lib/domain/lead-extraction";
+import {
+  persistCall,
+  persistLead,
+  resolveContractorForNumber,
+} from "@/lib/portal/persistence";
+import { dispatchLead } from "@/lib/dispatch/dispatch-lead";
 
 /**
  * Ingestion endpoint for completed calls.
@@ -96,25 +106,97 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // TODO[CRITICAL]: Persist the call and lead via the service-role client,
-  // then dispatch. Deliberately not implemented rather than faked: writing to
-  // `calls` requires the real contractor id resolved from the routed number,
-  // and that mapping is provider-specific.
-  //
-  // Required data:
-  //   - contractor_id, resolved from the dialled CrewCatch number
-  //   - calls row: transcript, intent, urgency, duration, qualified = true
-  //   - leads row: name, phone, address, urgency, intent, issue
-  //   - dispatch via WorkflowProvider.dispatchLead(lead, contractor.channels)
-  //
-  // The service-role client MUST be used here and nowhere else; see
-  // lib/supabase/admin.ts.
+  // 5. Resolve the contractor from the dialled number. Without this we cannot
+  //    write a tenant-scoped row, and guessing would risk one contractor
+  //    receiving another customer's call.
+  const dialled = event.metadata.dialledNumber ?? event.metadata.to;
+  if (!dialled) {
+    console.warn(
+      "[webhook] no dialled number in metadata — cannot resolve the contractor.",
+    );
+    return NextResponse.json(
+      { status: "unresolved", reason: "missing_dialled_number" },
+      { status: 202 },
+    );
+  }
 
-  const { voice, workflow } = getProviders();
-  await voice.getCallTranscript(event.externalCallId);
+  const resolved = await resolveContractorForNumber(dialled);
+  if (!resolved.ok) {
+    console.warn(
+      `[webhook] could not resolve contractor for ${dialled} (${resolved.reason}).`,
+    );
+    // 202, not 4xx: the request was valid and authenticated. Retrying will not
+    // fix a provisioning gap, and a 4xx would make the vendor treat it as
+    // permanently undeliverable and stop retrying — which is what we want.
+    return NextResponse.json(
+      { status: "unresolved", reason: resolved.reason },
+      { status: 202 },
+    );
+  }
+
+  const { contractorId, dispatchChannels } = resolved.data;
+
+  // 6. Persist the call. Idempotent — a replayed webhook reuses the row.
+  const callResult = await persistCall({
+    event,
+    contractorId,
+    intent: extraction.lead.intent,
+    urgency: extraction.lead.urgency,
+    qualified: true,
+  });
+
+  if (!callResult.ok) {
+    console.error(
+      `[webhook] failed to persist call ${event.externalCallId}: ${callResult.reason} ${callResult.detail ?? ""}`,
+    );
+    return NextResponse.json(
+      { status: "persistence_failed", reason: callResult.reason },
+      { status: 500 },
+    );
+  }
+
+  const callId = callResult.data.id;
+
+  // 7. Persist the lead, then dispatch it.
+  const leadRow = await persistLead(contractorId, callId, {
+    name: extraction.lead.name,
+    phone: extraction.lead.phone,
+    address: extraction.lead.address,
+    intent: extraction.lead.intent,
+    urgency: extraction.lead.urgency,
+    issue: extraction.lead.issue,
+  });
+
+  if (!leadRow.ok) {
+    console.error(
+      `[webhook] failed to persist lead for call ${callId}: ${leadRow.reason} ${leadRow.detail ?? ""}`,
+    );
+    return NextResponse.json(
+      { status: "persistence_failed", reason: leadRow.reason },
+      { status: 500 },
+    );
+  }
+
+  const lead: Lead = {
+    // The extractor returns a `callId: ""` placeholder (the persistence layer
+    // owns identity), so the real ids must be applied AFTER the spread.
+    ...extraction.lead,
+    id: leadRow.data.id,
+    contractorId,
+    callId,
+    capturedAt: new Date().toISOString(),
+  };
+
+  const dispatches = await dispatchLead({
+    contractorId,
+    lead,
+    channels: dispatchChannels,
+  });
+
+  const delivered = dispatches.filter((d) => d.delivered).length;
 
   console.info(
-    `[webhook] qualified ${tier} lead for trade ${trade}; dispatch pending persistence.`,
+    `[webhook] lead ${lead.id} persisted; ${delivered}/${dispatches.length} channel(s) delivered.`,
   );
 
   return NextResponse.json(
@@ -122,8 +204,16 @@ export async function POST(request: NextRequest) {
       status: "accepted",
       trade,
       tier,
-      lead: extraction.lead,
-      dispatch: "pending",
+      callId,
+      leadId: lead.id,
+      replayed: !callResult.data.created,
+      dispatch: dispatches.map((d) => ({
+        channel: d.channel,
+        delivered: d.delivered,
+        attempts: d.attempts,
+        elapsedMs: d.elapsedMs,
+        withinSla: d.withinSla,
+      })),
     },
     { status: 202 },
   );
