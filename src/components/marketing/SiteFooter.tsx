@@ -55,11 +55,21 @@ export function SiteFooter() {
 
         <div>
           <h2 className="text-[11px] font-bold uppercase tracking-wider text-fg-muted">
-            Coverage
+            Legal
           </h2>
-          <p className="mt-3 text-sm text-fg-muted">
-            United States &amp; Canada. Multi-timezone routing, area-code aware.
-          </p>
+          <ul className="mt-3 space-y-2">
+            {[
+              ["/privacy", "Privacy"],
+              ["/terms", "Terms of Service"],
+              ["/dpa", "Data Processing"],
+            ].map(([href, label]) => (
+              <li key={href}>
+                <Link href={href} className="text-sm text-fg-muted hover:text-fg">
+                  {label}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 

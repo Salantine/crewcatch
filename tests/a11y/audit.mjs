@@ -29,6 +29,9 @@ const PAGES = [
   ["/leads", "portal-leads"],
   ["/prompts", "portal-prompts"],
   ["/settings", "portal-settings"],
+  ["/privacy", "privacy"],
+  ["/terms", "terms"],
+  ["/dpa", "dpa"],
 ];
 
 // WCAG 2.1 AA tags. `color-contrast` is the rule most likely to trip given
