@@ -19,14 +19,37 @@ function isPublic(pathname: string) {
   return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
 }
 
+/**
+ * Portal routes are the ONLY thing behind auth. Everything else is public, so
+ * this is an allowlist of what must be gated rather than a denylist of public
+ * paths — a new marketing route stays public by default instead of
+ * accidentally 307-ing the whole site.
+ */
+const PORTAL_ROUTES = ["/dashboard", "/calls", "/leads", "/prompts", "/settings"];
+
+const isPortal = (pathname: string) =>
+  PORTAL_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+
+  // Supabase is optional for the public site. Without credentials the marketing
+  // pages must still serve — otherwise an unconfigured local checkout 500s on
+  // every route. The portal redirects to login, which reports the missing setup.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (isPortal(pathname)) {
+      const redirect = new URL("/login", request.url);
+      redirect.searchParams.set("reason", "supabase-unconfigured");
+      return NextResponse.redirect(redirect);
+    }
+    return NextResponse.next({ request });
+  }
 
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
@@ -57,7 +80,7 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  if (!user) {
+  if (isPortal(pathname) && !user) {
     const redirect = new URL("/login", request.url);
     redirect.searchParams.set("next", `${pathname}${search}`);
     return NextResponse.redirect(redirect);

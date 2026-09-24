@@ -7,7 +7,6 @@ import {
   type DispatchChannel,
   type Lead,
   type PhoneNumber,
-  type PromptProfile,
 } from "@/lib/domain/schemas";
 import type {
   NotificationChannel,

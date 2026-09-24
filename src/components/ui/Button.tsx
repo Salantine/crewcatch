@@ -1,17 +1,32 @@
 import { cn } from "@/lib/cn";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import Link from "next/link";
+import type {
+  AnchorHTMLAttributes,
+  ButtonHTMLAttributes,
+  ReactNode,
+} from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+type BaseProps = {
   variant?: Variant;
   size?: Size;
   /** Required when the button's only content is an icon — screen readers
    *  otherwise announce an unlabelled control. */
   iconOnly?: boolean;
   children?: ReactNode;
-}
+  className?: string;
+};
+
+type ButtonAsButton = BaseProps & ButtonHTMLAttributes<HTMLButtonElement> & {
+  href?: undefined;
+};
+type ButtonAsLink = BaseProps & AnchorHTMLAttributes<HTMLAnchorElement> & {
+  href: string;
+};
+
+export type ButtonProps = ButtonAsButton | ButtonAsLink;
 
 /*
  * The four measured contrast rules, encoded here so they cannot be forgotten:
@@ -34,29 +49,46 @@ const SIZES: Record<Size, string> = {
   lg: "h-14 px-8 text-base",
 };
 
-export function Button({
-  variant = "primary",
-  size = "md",
-  iconOnly = false,
-  className,
-  type = "button",
-  children,
-  ...props
-}: ButtonProps) {
+const BASE = [
+  "inline-flex items-center justify-center gap-2 font-semibold uppercase tracking-wide",
+  "transition-colors duration-100 select-none",
+  "disabled:opacity-50 disabled:cursor-not-allowed",
+].join(" ");
+
+function classes(
+  variant: Variant,
+  size: Size,
+  iconOnly: boolean,
+  className?: string,
+) {
+  return cn(
+    BASE,
+    SIZES[size],
+    VARIANTS[variant],
+    iconOnly && "px-0 aspect-square",
+    className,
+  );
+}
+
+export function Button(props: ButtonProps) {
+  const { variant = "primary", size = "md", iconOnly = false, className, children } = props;
+  const cls = classes(variant, size, iconOnly, className);
+
+  // Polymorphic: a link renders an <a>, a button renders a <button>. Never
+  // nest a Link inside a button — that is invalid HTML and breaks keyboard
+  // and screen-reader semantics.
+  if ("href" in props && props.href !== undefined) {
+    const { href, variant: _v, size: _s, iconOnly: _i, children: _c, className: _cl, ...rest } = props;
+    return (
+      <Link href={href} className={cls} {...rest}>
+        {children}
+      </Link>
+    );
+  }
+
+  const { type = "button", variant: _v2, size: _s2, iconOnly: _i2, className: _cl2, children: _c2, ...rest } = props;
   return (
-    <button
-      type={type}
-      className={cn(
-        "inline-flex items-center justify-center gap-2 font-semibold uppercase tracking-wide",
-        "transition-colors duration-100 select-none",
-        "disabled:opacity-50 disabled:cursor-not-allowed",
-        SIZES[size],
-        VARIANTS[variant],
-        iconOnly && "px-0 aspect-square",
-        className,
-      )}
-      {...props}
-    >
+    <button type={type} className={cls} {...rest}>
       {children}
     </button>
   );
