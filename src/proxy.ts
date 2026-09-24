@@ -35,13 +35,14 @@ export async function proxy(request: NextRequest) {
 
   // Supabase is optional for the public site. Without credentials the marketing
   // pages must still serve — otherwise an unconfigured local checkout 500s on
-  // every route. The portal redirects to login, which reports the missing setup.
+  // every route.
+  //
+  // With no Supabase project there is also no session to check and no database
+  // to read, so the portal is reachable in DEMO mode: it renders generated
+  // sample data behind a banner that says so. This cannot leak anything, because
+  // there is nothing behind it. Redirecting to /login would leave the portal
+  // impossible to inspect locally.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    if (isPortal(pathname)) {
-      const redirect = new URL("/login", request.url);
-      redirect.searchParams.set("reason", "supabase-unconfigured");
-      return NextResponse.redirect(redirect);
-    }
     return NextResponse.next({ request });
   }
 
