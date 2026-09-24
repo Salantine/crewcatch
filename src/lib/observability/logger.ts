@@ -46,6 +46,10 @@ const SENSITIVE_KEYS = new Set([
   "password",
   "apiKey",
   "authorization",
+  // Business identifiers can be personally identifying — a sole trader's
+  // company name is their name. Redacted for the same reason as `name`.
+  "business",
+  "businessName",
 ]);
 
 export const REDACTED = "[redacted]";

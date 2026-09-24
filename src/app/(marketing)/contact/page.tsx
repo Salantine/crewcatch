@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Button } from "@/components/ui/Button";
+import { ContactForm } from "./ContactForm";
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -32,7 +33,12 @@ export default function ContactPage() {
           <h2 className="text-sm font-bold uppercase tracking-wider text-fg-muted">
             Email
           </h2>
-          <p className="metric mt-3 text-lg">sales@crewcatch.ai</p>
+          <a
+            href="mailto:sales@crewcatch.ai"
+            className="metric mt-3 inline-block text-lg text-accent-ink underline underline-offset-2 hover:text-fg"
+          >
+            sales@crewcatch.ai
+          </a>
           <p className="mt-2 text-sm text-fg-muted">
             We reply within one business day.
           </p>
@@ -41,7 +47,12 @@ export default function ContactPage() {
           <h2 className="text-sm font-bold uppercase tracking-wider text-fg-muted">
             Phone
           </h2>
-          <p className="metric mt-3 text-lg">+1 (800) 555-0142</p>
+          <a
+            href="tel:+18005550142"
+            className="metric mt-3 inline-block text-lg text-accent-ink underline underline-offset-2 hover:text-fg"
+          >
+            +1 (800) 555-0142
+          </a>
           <p className="mt-2 text-sm text-fg-muted">
             Mon–Fri, 8am–6pm ET. Emergencies go through your CrewCatch line.
           </p>
@@ -62,6 +73,19 @@ export default function ContactPage() {
             </li>
           ))}
         </ol>
+      </section>
+
+      <section className="mt-12">
+        <h2 className="text-xl font-black uppercase tracking-tight">
+          Or send it here
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm text-fg-muted">
+          We read every one of these. The more concrete the numbers, the more
+          useful the first reply.
+        </p>
+        <div className="mt-6 max-w-2xl">
+          <ContactForm />
+        </div>
       </section>
 
       <div className="mt-10 flex flex-wrap gap-4">
