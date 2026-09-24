@@ -10,12 +10,21 @@ import { createClient } from "@/lib/supabase/server";
  * records the intent; it is not the authorization boundary.
  */
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // `createClient()` throws when Supabase is not configured (demo mode).
+  // An unauthenticated caller must get 401, not a 500 that reads as a
+  // server fault, and the failure must be closed either way.
+  let supabase: Awaited<ReturnType<typeof createClient>> | null = null;
+  try {
+    supabase = await createClient();
+  } catch {
+    supabase = null;
+  }
 
-  if (!user) {
+  const user = supabase
+    ? (await supabase.auth.getUser()).data.user
+    : null;
+
+  if (!user || !supabase) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
